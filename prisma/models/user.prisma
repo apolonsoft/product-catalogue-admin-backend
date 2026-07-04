@@ -1,0 +1,50 @@
+enum Role {
+  ADMIN
+  USER
+
+  @@schema("public")
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  DISABLED
+
+  @@schema("public")
+}
+
+model User {
+  id             String     @id @default(uuid())
+  email          String     @unique
+  phone          String?
+  firstName      String?    @map("first_name")
+  lastName       String?    @map("last_name")
+  passwordHash   String?    @map("hashed_password")
+  role           Role       @default(USER)
+  status         UserStatus @default(PENDING)
+  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime   @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt      DateTime?  @map("deleted_at") @db.Timestamptz
+
+  invitations UserInvitation[]
+
+  @@map("users")
+  @@schema("public")
+}
+
+model UserInvitation {
+  id              String    @id @default(uuid())
+  userId          String    @map("user_id")
+  tokenHash       String    @unique @map("token_hash")
+  expiresAt       DateTime  @map("expires_at")
+  acceptedAt      DateTime? @map("accepted_at")
+  createdByUserId String?   @map("created_by_user_id")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_invitations")
+  @@schema("public")
+}

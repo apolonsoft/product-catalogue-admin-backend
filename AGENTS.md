@@ -6,7 +6,7 @@ This file is intended for AI coding agents working on this project. It describes
 
 - **Name:** `product-catalogue-admin-backend`
 - **Framework:** [NestJS](https://nestjs.com/) v11, written in TypeScript.
-- **Purpose:** Administrative backend for a product catalogue. The codebase is currently a fresh NestJS starter with only the root `AppModule` wired up; no domain modules, controllers, or database models exist yet.
+- **Purpose:** Administrative backend for a product catalogue.
 - **Package manager:** Yarn (`yarn.lock` is present).
 - **Node version:** `v24.15.0` (recorded in `.nvmrc`).
 
@@ -15,11 +15,11 @@ This file is intended for AI coding agents working on this project. It describes
 - **Runtime:** Node.js
 - **Framework:** NestJS 11 + Express platform (`@nestjs/platform-express`)
 - **Language:** TypeScript 5.7 with `ts-node` for development and `ts-jest` for tests
-- **ORM:** Prisma 7.8 with a PostgreSQL datasource
+- **ORM:** Prisma 7.8 with a PostgreSQL datasource and the `@prisma/adapter-pg` driver adapter
 - **Cache:** `@nestjs/cache-manager` backed by `keyv` (in-memory LRU + Redis on `redis://localhost:6379`)
 - **Configuration:** `@nestjs/config` + environment variables
-- **Security:** `helmet`, `cors`, `cookie-parser`, `csrf-csrf`, `express-session`, `compression`, class-validator/class-transformer validation pipe
-- **Authentication libraries present (not yet wired):** `@nestjs/jwt`, `@nestjs/passport`, `passport-jwt`, `passport-local`, `bcrypt`
+- **Security:** `helmet`, `cors`, `compression`, class-validator/class-transformer validation pipe
+- **Authentication:** `@nestjs/jwt`, `@nestjs/passport`, `passport-jwt`, `bcrypt`
 - **Scheduling library present (not yet wired):** `@nestjs/schedule`
 - **Rate limiting library present (not yet wired):** `@nestjs/throttler`
 
@@ -29,18 +29,23 @@ This file is intended for AI coding agents working on this project. It describes
 .
 ├── dist/                  # Compiled output (deleted and rebuilt by `nest build`)
 ├── prisma/
-│   ├── schema.prisma      # Prisma schema (currently has no models)
+│   ├── schema.prisma      # Prisma schema with User and UserInvitation models
 │   └── migrations/        # Migration directory referenced by prisma.config.ts
 ├── src/                   # Application source
 │   ├── main.ts            # Bootstrap: middleware, pipes, listen
-│   ├── app.module.ts      # Root module
+│   ├── app.module.ts      # Root module; seeds default admin on init
 │   ├── app.controller.ts  # Root controller
 │   ├── app.service.ts     # Root service
-│   └── app.controller.spec.ts
-├── test/                  # End-to-end tests
+│   ├── prisma/            # Prisma module, service, and client barrel
+│   ├── users/             # Users module and service
+│   └── auth/              # Auth module, controller, service, guards, decorators, DTOs
+├── test/                  # End-to-end tests and Prisma mock helpers
 │   ├── app.e2e-spec.ts
+│   ├── auth.e2e-spec.ts
+│   ├── mock-prisma.ts
+│   ├── prisma-client.mock.ts
 │   └── jest-e2e.json
-├── .env                   # DATABASE_URL, CSRF_SECRET, PORT, etc.
+├── .env                   # DATABASE_URL, JWT_SECRET, DEFAULT_ADMIN_*, etc.
 ├── prisma.config.ts       # Prisma config (reads DATABASE_URL from env)
 ├── nest-cli.json          # Nest CLI configuration
 ├── tsconfig.json          # Base TypeScript config
@@ -55,16 +60,17 @@ This file is intended for AI coding agents working on this project. It describes
 - `tsconfig.build.json` — extends `tsconfig.json` and excludes `node_modules`, `test`, `dist`, and `**/*spec.ts`.
 - `nest-cli.json` — source root is `src`; build deletes `dist` first (`deleteOutDir: true`).
 - `prisma.config.ts` — defines the schema path, migrations path, and datasource URL from `process.env.DATABASE_URL`.
-- `prisma/schema.prisma` — currently empty apart from generator/client and datasource declarations. The Prisma client is generated to `../generated/prisma`.
+- `prisma/schema.prisma` — defines `User`, `UserInvitation`, `Role`, and `UserStatus`. The Prisma client is generated to `../generated/prisma`.
 - `.prettierrc` — `singleQuote: true`, `trailingComma: all`.
 - `eslint.config.mjs` — flat config using `@eslint/js`, `typescript-eslint`, and `eslint-plugin-prettier/recommended`.
 
 ## Build and Run Commands
 
-Install dependencies:
+Install dependencies and generate the Prisma client:
 
 ```bash
 yarn install
+npx prisma generate
 ```
 
 Development:
@@ -113,30 +119,36 @@ End-to-end tests (config `test/jest-e2e.json`, matches `*.e2e-spec.ts`):
 yarn test:e2e
 ```
 
-Current tests only cover the default `AppController.getHello()` endpoint returning `"Hello World!"`.
-
 ## Environment and Runtime Architecture
 
 - The HTTP server is created in `src/main.ts`.
 - Global middleware stack:
   - CORS (`app.enableCors()`)
   - Helmet
-  - Cookie parser
-  - CSRF protection via `csrf-csrf` (reads `CSRF_SECRET` from env; session identifier falls back to `req.ip`)
-  - Express sessions with a hardcoded secret (`'my-secret'`) — this should be moved to an environment variable for real deployments
   - Response compression
   - Global `ValidationPipe`
 - The app listens on `process.env.PORT` or `3000`.
-- The root `AppModule` imports `ConfigModule.forRoot()` and registers a cache manager with memory and Redis stores.
-- Prisma is configured through `prisma.config.ts`; the schema expects PostgreSQL via `DATABASE_URL`.
+- The root `AppModule` imports `ConfigModule.forRoot()`, registers a cache manager with memory and Redis stores, and seeds a default `ADMIN` user from `DEFAULT_ADMIN_EMAIL` / `DEFAULT_ADMIN_PASSWORD` on startup if that email does not exist.
+- Prisma is configured through `prisma.config.ts`; the schema expects PostgreSQL via `DATABASE_URL` and uses the `@prisma/adapter-pg` driver adapter.
+- Authentication is JWT bearer based. Public endpoints: `POST /auth/login` and `POST /auth/invitations/accept`. Protected endpoints require `Authorization: Bearer <token>`.
+- `POST /auth/invitations` is restricted to users with the `ADMIN` role.
+
+### Required Environment Variables
+
+- `DATABASE_URL` — PostgreSQL connection string.
+- `JWT_SECRET` — Secret used to sign JWTs.
+- `JWT_EXPIRES_IN` — JWT expiry (default `1h`).
+- `DEFAULT_ADMIN_EMAIL` / `DEFAULT_ADMIN_PASSWORD` — Credentials for the auto-created admin.
+- `INVITE_EXPIRES_IN_DAYS` — Invitation token lifetime (default `7`).
+- `APP_URL` — Base URL used to build invitation links.
 
 ## Security Considerations
 
-- The session secret is currently hardcoded in `src/main.ts` (`secret: 'my-secret'`). Change it to read from an environment variable before any real deployment.
-- CSRF protection requires `CSRF_SECRET` to be set.
 - `DATABASE_URL` is stored in `.env`, which is ignored by Git.
 - `generated/prisma` is also ignored by Git.
-- Several security-related packages (`passport`, JWT, bcrypt, throttler) are installed but not yet configured. When adding authentication, prefer environment-driven secrets and rate-limiting on public endpoints.
+- Invitation tokens are returned in full only once from `POST /auth/invitations`; only SHA-256 hashes are stored.
+- Passwords are stored as bcrypt hashes and never returned in API responses.
+- CSRF and session middleware were removed because authentication uses stateless bearer tokens.
 
 ## Deployment Notes
 
@@ -144,8 +156,9 @@ Current tests only cover the default `AppController.getHello()` endpoint returni
 - The project expects:
   - PostgreSQL reachable via `DATABASE_URL`
   - Redis reachable at `redis://localhost:6379` (default cache configuration)
+- Run `npx prisma migrate deploy` against the production database before starting the app.
 - No Dockerfile, CI/CD pipeline, or platform-specific deployment config exists yet.
 
 ## Current State
 
-This is a newly initialized NestJS project (two commits in Git history). It has the default `AppModule` and security/utility dependencies installed, but no business logic, Prisma models, migrations, or authentication implementation yet. Any new feature should be added as a NestJS module under `src/` and registered in `AppModule`.
+The project has a working JWT authentication and invitation system with `User` / `UserInvitation` Prisma models, default admin seeding, ADMIN/USER roles, and unit plus E2E test coverage. New business features should be added as NestJS modules under `src/` and registered in `AppModule`.
