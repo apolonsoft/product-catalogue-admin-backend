@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment,
-                  @typescript-eslint/no-unsafe-member-access */
 import { jest } from '@jest/globals';
 import { Role, UserStatus } from '../generated/prisma/enums';
 import type {
@@ -51,7 +49,7 @@ export function createMockPrisma(initialUsers: User[] = []): {
             passwordHash: data.passwordHash ?? null,
             createdAt: new Date(),
             updatedAt: new Date(),
-          } as User;
+          };
           stores.users.push(user);
           return Promise.resolve(user);
         },
@@ -97,7 +95,7 @@ export function createMockPrisma(initialUsers: User[] = []): {
             createdByUserId: data.createdByUserId ?? null,
             createdAt: new Date(),
             updatedAt: new Date(),
-          } as UserInvitation;
+          };
           stores.invitations.push(invitation);
           return Promise.resolve(invitation);
         },
