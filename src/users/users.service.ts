@@ -1,7 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment,
-                  @typescript-eslint/no-unsafe-member-access,
-                  @typescript-eslint/no-unsafe-return,
-                  @typescript-eslint/no-redundant-type-constituents */
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
@@ -92,8 +88,8 @@ export class UsersService {
   }
 
   stripPassword(user: User): SafeUser {
-    const safe = { ...user };
-    delete (safe as Partial<User>).passwordHash;
-    return safe as SafeUser;
+    const { passwordHash, ...safe } = user;
+    void passwordHash;
+    return safe;
   }
 }

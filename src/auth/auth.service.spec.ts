@@ -35,11 +35,15 @@ describe('AuthService', () => {
   const activeUser: User = {
     id: 'user-1',
     email: 'active@example.com',
+    phone: null,
+    firstName: null,
+    lastName: null,
     passwordHash: '',
     role: Role.USER,
     status: UserStatus.ACTIVE,
     createdAt: new Date(),
     updatedAt: new Date(),
+    deletedAt: null,
   };
 
   beforeEach(async () => {
