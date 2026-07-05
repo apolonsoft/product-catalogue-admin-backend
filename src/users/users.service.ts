@@ -9,7 +9,6 @@ export type SafeUser = Omit<User, 'passwordHash'>;
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
-  private readonly saltRounds = 10;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -53,11 +52,11 @@ export class UsersService {
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    return this.prisma.user.findUnique({ where: { email } });
+    return this.prisma.user.findUnique({ where: { email, deletedAt: null } });
   }
 
   async findById(id: string): Promise<User | null> {
-    return this.prisma.user.findUnique({ where: { id } });
+    return this.prisma.user.findUnique({ where: { id, deletedAt: null } });
   }
 
   async createInviteUser(email: string, role: Role): Promise<User> {
@@ -84,7 +83,9 @@ export class UsersService {
   }
 
   async hashPassword(password: string): Promise<string> {
-    return bcrypt.hash(password, this.saltRounds);
+    const saltRounds =
+      Number(this.config.get<number>('BCRYPT_SALT_ROUNDS')) || 10;
+    return bcrypt.hash(password, saltRounds);
   }
 
   stripPassword(user: User): SafeUser {

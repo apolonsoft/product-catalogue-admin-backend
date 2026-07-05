@@ -1,0 +1,17 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+generator seedClient {
+  provider               = "prisma-client-ts"
+  output                 = "../generated/prisma-seed"
+  moduleFormat           = "esm"
+  generatedFileExtension = "mts"
+  importFileExtension    = "mts"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["public"]
+}
