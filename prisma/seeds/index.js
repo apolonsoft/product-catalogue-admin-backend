@@ -1,4 +1,4 @@
-import { seedUsers } from './functions/01_users.js';
+import { seedDefaultAdminUser } from './functions/01_default_admin_user.js';
 import { prisma } from './context.js';
 import ora from 'ora';
 import chalk from 'chalk';
@@ -20,8 +20,8 @@ async function main() {
   await prisma.$connect();
   console.log('🌱 Seeding database...');
 
-  // 01 - Users
-  await seed(seedUsers, 'users');
+  // 01 - Default Admin User
+  await seed(seedDefaultAdminUser, 'seedDefaultAdminUser');
 
   console.log('✅ Done!');
 }
