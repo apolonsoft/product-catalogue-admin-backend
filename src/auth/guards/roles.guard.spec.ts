@@ -1,7 +1,7 @@
 import { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { Role } from '../../../generated/prisma/enums';
+import { Role } from '../../prisma/prisma-client';
 import { RolesGuard } from './roles.guard';
 
 describe('RolesGuard', () => {

@@ -25,6 +25,7 @@ describe('AuthController (e2e)', () => {
       phone: null,
       firstName: null,
       lastName: null,
+      avatarFileId: null,
       deletedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
