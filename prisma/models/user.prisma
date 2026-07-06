@@ -20,14 +20,17 @@ model User {
   firstName      String?    @map("first_name")
   lastName       String?    @map("last_name")
   passwordHash   String?    @map("hashed_password")
+  avatarFileId   String?    @map("avatar_file_id") @db.Uuid
   role           Role       @default(USER)
   status         UserStatus @default(PENDING)
   createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz
   updatedAt      DateTime   @updatedAt @map("updated_at") @db.Timestamptz
   deletedAt      DateTime?  @map("deleted_at") @db.Timestamptz
 
+  avatarFile  File?           @relation("UserAvatarFile", fields: [avatarFileId], references: [id], onDelete: SetNull)
   invitations UserInvitation[]
 
+  @@index([avatarFileId])
   @@map("users")
   @@schema("public")
 }

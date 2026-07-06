@@ -39,6 +39,7 @@ describe('AuthService', () => {
     firstName: null,
     lastName: null,
     passwordHash: '',
+    avatarFileId: null,
     role: Role.USER,
     status: UserStatus.ACTIVE,
     createdAt: new Date(),

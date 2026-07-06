@@ -32,6 +32,9 @@ model File {
   sourceUploadId String? @unique @map("source_upload_id") @db.Uuid
   sourceUpload   Upload? @relation("UploadPromotedFile", fields: [sourceUploadId], references: [id], onDelete: Restrict)
 
+  // Reverse relation for user avatars that reference this file.
+  avatars User[] @relation("UserAvatarFile")
+
   // Audit Fields
   createdAt          DateTime    @default(now()) @map("created_at") @db.Timestamptz
   updatedAt          DateTime    @updatedAt @map("updated_at") @db.Timestamptz

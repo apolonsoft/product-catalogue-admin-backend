@@ -1,10 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { Role, UserStatus, type User } from '../prisma/prisma-client';
+import {
+  Role,
+  UserStatus,
+  type File,
+  type User,
+} from '../prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 
-export type SafeUser = Omit<User, 'passwordHash'>;
+type UserWithAvatar = User & { avatarFile?: File | null };
+
+export type SafeUser = Omit<UserWithAvatar, 'passwordHash'>;
 
 @Injectable()
 export class UsersService {
@@ -55,8 +62,13 @@ export class UsersService {
     return this.prisma.user.findUnique({ where: { email, deletedAt: null } });
   }
 
-  async findById(id: string): Promise<User | null> {
-    return this.prisma.user.findUnique({ where: { id, deletedAt: null } });
+  async findById(id: string): Promise<UserWithAvatar | null> {
+    const user = (await this.prisma.user.findUnique({
+      where: { id, deletedAt: null },
+      include: { avatarFile: true },
+    })) as UserWithAvatar | null;
+
+    return user;
   }
 
   async createInviteUser(email: string, role: Role): Promise<User> {
@@ -88,7 +100,7 @@ export class UsersService {
     return bcrypt.hash(password, saltRounds);
   }
 
-  stripPassword(user: User): SafeUser {
+  stripPassword(user: UserWithAvatar): SafeUser {
     const { passwordHash, ...safe } = user;
     void passwordHash;
     return safe;

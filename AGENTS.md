@@ -132,6 +132,8 @@ yarn test:e2e
 - Prisma is configured through `prisma.config.ts`; the schema expects PostgreSQL via `DATABASE_URL` and uses the `@prisma/adapter-pg` driver adapter.
 - Authentication is JWT bearer based. Public endpoints: `POST /auth/login` and `POST /auth/invitations/accept`. Protected endpoints require `Authorization: Bearer <token>`.
 - `POST /auth/invitations` is restricted to users with the `ADMIN` role.
+- Profile endpoints (`/profile`) allow authenticated users to edit their first/last name, change their password, and upload an avatar via presigned S3/MinIO PUT URLs.
+- Avatars are persisted through the existing `Upload` / `File` Prisma models and served from `S3_PUBLIC_BASE_URL`.
 
 ### Required Environment Variables
 
@@ -141,6 +143,13 @@ yarn test:e2e
 - `DEFAULT_ADMIN_EMAIL` / `DEFAULT_ADMIN_PASSWORD` — Credentials for the auto-created admin.
 - `INVITE_EXPIRES_IN_DAYS` — Invitation token lifetime (default `7`).
 - `APP_URL` — Base URL used to build invitation links.
+- `S3_ENDPOINT` — S3/MinIO endpoint (e.g. `http://localhost:9000`).
+- `S3_REGION` — AWS region (default `us-east-1`).
+- `S3_BUCKET` — S3/MinIO bucket name.
+- `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` — S3 credentials.
+- `S3_FORCE_PATH_STYLE` — Set to `true` for MinIO compatibility.
+- `S3_PUBLIC_BASE_URL` — Public base URL used to build `File.link` values.
+- `AVATAR_MAX_BYTES` — Maximum avatar file size in bytes (default `5242880`).
 
 ## Security Considerations
 
@@ -161,4 +170,4 @@ yarn test:e2e
 
 ## Current State
 
-The project has a working JWT authentication and invitation system with `User` / `UserInvitation` Prisma models, default admin seeding, ADMIN/USER roles, and unit plus E2E test coverage. New business features should be added as NestJS modules under `src/` and registered in `AppModule`.
+The project has a working JWT authentication and invitation system, authenticated profile APIs (name, password, and avatar upload), and S3-compatible storage via the AWS SDK v3. It includes `User`, `UserInvitation`, `Upload`, and `File` Prisma models, default admin seeding, ADMIN/USER roles, and unit plus E2E test coverage. New business features should be added as NestJS modules under `src/` and registered in `AppModule`.

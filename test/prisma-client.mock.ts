@@ -1,8 +1,10 @@
-export { Role, UserStatus } from '../generated/prisma/enums';
-export type {
-  UserModel as User,
-  UserInvitationModel as UserInvitation,
-} from '../generated/prisma/models';
+export {
+  Role,
+  UserStatus,
+  FileStatus,
+  UploadStatus,
+} from '../generated/prisma';
+export type { User, UserInvitation, File, Upload } from '../generated/prisma';
 
 export class PrismaClient {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
