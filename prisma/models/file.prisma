@@ -1,0 +1,47 @@
+enum FileStatus {
+  UPLOADING // When the file is being uploaded
+  PROCESSING // When the file is being processed
+  UPLOADED // When the file is uploaded and processed 
+  FAILED // When the file fails to upload
+
+  @@schema("public")
+}
+
+model File {
+  // Identity
+  id       String @id @default(uuid()) @db.Uuid
+
+
+  // S3 metadata (column widths aligned with uploads for promotion from uploads table)
+  bucket     String     @db.VarChar(255)
+  region     String     @db.VarChar(50)
+  key        String     @db.VarChar(1024)
+  link       String     @db.VarChar(2048)
+  size       Int        @db.Integer
+  type       String     @db.VarChar(255) // e.g. image/png, application/pdf
+  name       String     @db.VarChar(512)
+  hash       String?    @db.VarChar(128)
+  properties Json?      @db.Json
+  status     FileStatus @default(UPLOADING)
+  error      String?
+  isClaimed  Boolean    @default(false) @map("is_claimed") // When the file is claimed by an entity (job, appointment, invoice)
+  // S3 multipart upload id (not a FK to uploads table)
+  uploadId   String?    @map("upload_id") @db.VarChar(255)
+
+  // Set when this row is created from a successful uploads finalize (one File per Upload).
+  sourceUploadId String? @unique @map("source_upload_id") @db.Uuid
+  sourceUpload   Upload? @relation("UploadPromotedFile", fields: [sourceUploadId], references: [id], onDelete: Restrict)
+
+  // Audit Fields
+  createdAt          DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt          DateTime?   @map("deleted_at") @db.Timestamptz
+
+
+  // Version
+  version Int @default(1) @map("version")
+
+  @@index([deletedAt])
+  @@map("files")
+  @@schema("public")
+}
