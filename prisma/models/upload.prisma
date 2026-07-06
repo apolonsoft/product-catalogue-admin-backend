@@ -1,0 +1,37 @@
+enum UploadStatus {
+  UPLOADING
+  UPLOADED
+  FAILED
+
+  @@schema("public")
+}
+
+model Upload {
+  id       String @id  @db.Uuid
+
+  bucket String  @db.VarChar(255)
+  region String  @db.VarChar(50)
+  key    String  @db.VarChar(1024)
+  link   String  @default("") @db.VarChar(2048)
+  size   Int     @db.Integer
+  type   String  @db.VarChar(255) // contentType
+  name   String  @db.VarChar(512)
+  hash   String? @db.VarChar(128)
+
+  status   UploadStatus @default(UPLOADING)
+  error    String?      @db.Text
+  uploadId String?      @map("upload_id") @db.VarChar(255) // S3 multipart upload ID
+
+  createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+
+  version           Int         @default(1) @map("version")
+
+  // Populated when finalize promotes this upload into a File (see files.source_upload_id).
+  promotedFile File? @relation("UploadPromotedFile")
+
+  @@index([createdAt(sort: Desc)])
+  @@index([status, createdAt])
+  @@map("uploads")
+  @@schema("public")
+}
