@@ -31,6 +31,67 @@
 $ yarn install
 ```
 
+## Local infrastructure with Docker Compose
+
+The backend can be run locally while the supporting infrastructure runs in Docker. The Compose file in this directory starts:
+
+- **Postgres** 17 — database
+- **Redis** 7 — cache
+- **MinIO** — S3-compatible object storage
+- **Mailpit** — SMTP capture and web UI
+
+Copy the example environment file and adjust any secrets:
+
+```bash
+$ cp .env.example .env
+```
+
+Start the infrastructure:
+
+```bash
+$ docker compose --env-file .env up
+```
+
+Default ports (change them in `.env`):
+
+| Service | Port |
+|---------|------|
+| Postgres | `5432` |
+| Redis | `6379` |
+| MinIO API | `9000` |
+| MinIO Console | `9001` |
+| Mailpit SMTP | `1025` |
+| Mailpit Web UI | `8025` |
+
+MinIO is configured by the scripts in `platform/docker/minio/`. On startup `init.sh` creates the bucket configured in `S3_BUCKET`.
+
+If you see a Postgres error like `role "product_catalogue" does not exist`, an old Postgres volume was initialized with a different role. Remove the volume and start fresh:
+
+```bash
+$ docker compose --env-file .env down -v
+$ docker compose --env-file .env up
+```
+
+## Build and run the backend with Docker
+
+A multi-stage `Dockerfile` is provided for containerized deployments. It installs dependencies, runs Prisma generate, builds the NestJS application, and copies the production artifacts into a slim image.
+
+Build the image:
+
+```bash
+$ docker build -t product-catalogue-admin-backend .
+```
+
+Run the container. Pass a `.env` file with the runtime configuration and expose the backend port:
+
+```bash
+$ docker run --rm --env-file .env -p 3000:3000 product-catalogue-admin-backend
+```
+
+The container starts in production mode and runs `yarn start:prod`.
+
+> Note: This Dockerfile is optional for local development. The local Docker Compose stack runs only the infrastructure services; the backend is started directly on the host with `yarn start:dev` or `yarn start:prod`.
+
 ## Compile and run the project
 
 ```bash
