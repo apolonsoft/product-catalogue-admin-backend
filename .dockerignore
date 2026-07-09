@@ -1,0 +1,34 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+
+# Generated artifacts (recreated during build)
+generated
+
+# Testing
+coverage
+
+# Logs
+*.log
+logs
+
+# Environment
+.env
+.env.*
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Misc
+README.md
