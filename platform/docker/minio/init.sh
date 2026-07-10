@@ -16,4 +16,8 @@ echo "MinIO is ready. Proceeding with bucket setup..."
 # Create the configured bucket (idempotent due to -p flag)
 mc mb -p "local/${S3_BUCKET}"
 
+# Allow anonymous read/download access to avatar objects.
+# Production should use the equivalent S3 public-read bucket policy or a CDN instead.
+mc anonymous set download "local/${S3_BUCKET}"
+
 echo "Bucket creation completed."
