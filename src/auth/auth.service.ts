@@ -10,6 +10,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { randomBytes, createHash } from 'crypto';
 import type { StringValue } from 'ms';
+import { MailService } from '../mail/mail.service';
 import {
   Role,
   UserStatus,
@@ -37,6 +38,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly mailService: MailService,
   ) {}
 
   async login(email: string, password: string): Promise<LoginResult> {
@@ -148,11 +150,84 @@ export class AuthService {
     return user ? this.usersService.stripPassword(user) : null;
   }
 
+  async forgotPassword(email: string): Promise<void> {
+    const user = await this.usersService.findByEmail(email);
+
+    if (!user || user.status !== UserStatus.ACTIVE || !user.passwordHash) {
+      return;
+    }
+
+    const token = randomBytes(32).toString('hex');
+    const tokenHash = this.hashToken(token);
+    const expiresInMinutes = this.config.get<number>(
+      'PASSWORD_RESET_EXPIRES_IN_MINUTES',
+      30,
+    );
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + Number(expiresInMinutes));
+
+    await this.prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        tokenHash,
+        expiresAt,
+      },
+    });
+
+    const appUrl = this.config.get<string>('APP_URL', 'http://localhost:3000');
+    const link = `${appUrl}/auth/password/reset?token=${token}`;
+
+    await this.mailService.sendPasswordReset({ to: user.email, link });
+  }
+
+  async resetPassword(token: string, password: string): Promise<void> {
+    const tokenHash = this.hashToken(token);
+
+    const resetToken = await this.prisma.passwordResetToken.findUnique({
+      where: { tokenHash },
+      include: { user: true },
+    });
+
+    if (!resetToken) {
+      throw new NotFoundException('Invalid reset token');
+    }
+
+    if (resetToken.consumedAt) {
+      throw new BadRequestException('Reset token has already been used');
+    }
+
+    if (resetToken.expiresAt < new Date()) {
+      throw new BadRequestException('Reset token has expired');
+    }
+
+    if (resetToken.user.status !== UserStatus.ACTIVE) {
+      throw new BadRequestException('User account is not active');
+    }
+
+    const passwordHash = await this.usersService.hashPassword(password);
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: resetToken.userId },
+        data: { passwordHash, tokenVersion: { increment: 1 } },
+      }),
+      this.prisma.passwordResetToken.update({
+        where: { id: resetToken.id },
+        data: { consumedAt: new Date() },
+      }),
+    ]);
+  }
+
+  async logout(userId: string): Promise<void> {
+    await this.usersService.incrementTokenVersion(userId);
+  }
+
   private signToken(user: User): string {
     const payload = {
       sub: user.id,
       email: user.email,
       role: user.role,
+      tokenVersion: user.tokenVersion,
     };
 
     return this.jwtService.sign(payload, {

@@ -4,7 +4,13 @@ export {
   FileStatus,
   UploadStatus,
 } from '../generated/prisma';
-export type { User, UserInvitation, File, Upload } from '../generated/prisma';
+export type {
+  User,
+  UserInvitation,
+  PasswordResetToken,
+  File,
+  Upload,
+} from '../generated/prisma';
 
 export class PrismaClient {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

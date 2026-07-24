@@ -8,6 +8,7 @@ export interface JwtPayload {
   sub: string;
   email: string;
   role: string;
+  tokenVersion: number;
 }
 
 @Injectable()
@@ -27,6 +28,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const user = await this.usersService.findById(payload.sub);
 
     if (!user || user.status !== 'ACTIVE') {
+      throw new UnauthorizedException();
+    }
+
+    if (user.tokenVersion !== payload.tokenVersion) {
       throw new UnauthorizedException();
     }
 

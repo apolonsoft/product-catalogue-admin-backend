@@ -38,7 +38,8 @@ This file is intended for AI coding agents working on this project. It describes
 │   ├── app.service.ts     # Root service
 │   ├── prisma/            # Prisma module, service, and client barrel
 │   ├── users/             # Users module and service
-│   └── auth/              # Auth module, controller, service, guards, decorators, DTOs
+│   ├── auth/              # Auth module, controller, service, guards, decorators, DTOs
+│   └── mail/              # Mail module and service (nodemailer/SMTP)
 ├── test/                  # End-to-end tests and Prisma mock helpers
 │   ├── app.e2e-spec.ts
 │   ├── auth.e2e-spec.ts
@@ -60,7 +61,7 @@ This file is intended for AI coding agents working on this project. It describes
 - `tsconfig.build.json` — extends `tsconfig.json` and excludes `node_modules`, `test`, `dist`, and `**/*spec.ts`.
 - `nest-cli.json` — source root is `src`; build deletes `dist` first (`deleteOutDir: true`).
 - `prisma.config.ts` — defines the schema path, migrations path, and datasource URL from `process.env.DATABASE_URL`.
-- `prisma/schema.prisma` — defines `User`, `UserInvitation`, `Role`, and `UserStatus`. The Prisma client is generated to `../generated/prisma`.
+- `prisma/schema.prisma` — defines `User`, `UserInvitation`, `PasswordResetToken`, `Role`, and `UserStatus`. The Prisma client is generated to `../generated/prisma`.
 - `.prettierrc` — `singleQuote: true`, `trailingComma: all`.
 - `eslint.config.mjs` — flat config using `@eslint/js`, `typescript-eslint`, and `eslint-plugin-prettier/recommended`.
 
@@ -130,8 +131,10 @@ yarn test:e2e
 - The app listens on `process.env.PORT` or `3000`.
 - The root `AppModule` imports `ConfigModule.forRoot()`, registers a cache manager with memory and Redis stores, and seeds a default `ADMIN` user from `DEFAULT_ADMIN_EMAIL` / `DEFAULT_ADMIN_PASSWORD` on startup if that email does not exist.
 - Prisma is configured through `prisma.config.ts`; the schema expects PostgreSQL via `DATABASE_URL` and uses the `@prisma/adapter-pg` driver adapter.
-- Authentication is JWT bearer based. Public endpoints: `POST /auth/login` and `POST /auth/invitations/accept`. Protected endpoints require `Authorization: Bearer <token>`.
+- Authentication is JWT bearer based. Public endpoints: `POST /auth/login`, `POST /auth/invitations/accept`, `POST /auth/password/forgot`, and `POST /auth/password/reset`. Protected endpoints require `Authorization: Bearer <token>`.
+- JWT payloads include `tokenVersion`. `POST /auth/logout` increments the user's `tokenVersion`, revoking all outstanding access tokens for that user. Password reset also increments `tokenVersion`.
 - `POST /auth/invitations` is restricted to users with the `ADMIN` role.
+- Password reset tokens are SHA-256 hashed and emailed only; the raw token is never returned by the API.
 - Profile endpoints (`/profile`) allow authenticated users to edit their first/last name, change their password, and upload an avatar via presigned S3/MinIO PUT URLs.
 - Avatars are persisted through the existing `Upload` / `File` Prisma models and served from `S3_PUBLIC_BASE_URL`.
 
@@ -142,7 +145,10 @@ yarn test:e2e
 - `JWT_EXPIRES_IN` — JWT expiry (default `1h`).
 - `DEFAULT_ADMIN_EMAIL` / `DEFAULT_ADMIN_PASSWORD` — Credentials for the auto-created admin.
 - `INVITE_EXPIRES_IN_DAYS` — Invitation token lifetime (default `7`).
-- `APP_URL` — Base URL used to build invitation links.
+- `APP_URL` — Base URL used to build invitation and password-reset links.
+- `PASSWORD_RESET_EXPIRES_IN_MINUTES` — Password reset token lifetime (default `30`).
+- `SMTP_HOST` / `SMTP_PORT` — SMTP server host and port (defaults `localhost` / `1025`).
+- `SMTP_FROM` — From address for outgoing emails (default `no-reply@example.com`).
 - `S3_ENDPOINT` — S3/MinIO endpoint (e.g. `http://localhost:9000`).
 - `S3_REGION` — AWS region (default `us-east-1`).
 - `S3_BUCKET` — S3/MinIO bucket name.
@@ -170,4 +176,4 @@ yarn test:e2e
 
 ## Current State
 
-The project has a working JWT authentication and invitation system, authenticated profile APIs (name, password, and avatar upload), and S3-compatible storage via the AWS SDK v3. It includes `User`, `UserInvitation`, `Upload`, and `File` Prisma models, default admin seeding, ADMIN/USER roles, and unit plus E2E test coverage. New business features should be added as NestJS modules under `src/` and registered in `AppModule`.
+The project has a working JWT authentication and invitation system, authenticated profile APIs (name, password, and avatar upload), password reset via email, JWT revocation through `User.tokenVersion`, and S3-compatible storage via the AWS SDK v3. It includes `User`, `UserInvitation`, `PasswordResetToken`, `Upload`, and `File` Prisma models, default admin seeding, ADMIN/USER roles, and unit plus E2E test coverage. New business features should be added as NestJS modules under `src/` and registered in `AppModule`.
