@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import {
   UploadStatus,
   type File,
+  type PasswordResetToken,
   type Upload,
   type User,
   type UserInvitation,
@@ -16,6 +17,7 @@ type MockUpload = Upload & { promotedFile?: File | null };
 export interface MockPrismaStores {
   users: MockUser[];
   invitations: UserInvitation[];
+  passwordResetTokens: PasswordResetToken[];
   files: File[];
   uploads: MockUpload[];
 }
@@ -27,6 +29,7 @@ export function createMockPrisma(initialUsers: User[] = []): {
   const stores: MockPrismaStores = {
     users: initialUsers.map((u) => ({ ...u, avatarFile: null })),
     invitations: [],
+    passwordResetTokens: [],
     files: [],
     uploads: [],
   };
@@ -42,6 +45,7 @@ export function createMockPrisma(initialUsers: User[] = []): {
   const prisma = {
     $connect: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
     $disconnect: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
+    $transaction: jest.fn(<T>(ops: Promise<T>[]) => Promise.all(ops)),
     user: {
       findUnique: jest.fn(
         ({
@@ -76,6 +80,7 @@ export function createMockPrisma(initialUsers: User[] = []): {
             role: data.role ?? Role.USER,
             status: data.status ?? UserStatus.PENDING,
             passwordHash: data.passwordHash ?? null,
+            tokenVersion: data.tokenVersion ?? 0,
             avatarFileId: data.avatarFileId ?? null,
             avatarFile: null,
             createdAt: new Date(),
@@ -93,7 +98,9 @@ export function createMockPrisma(initialUsers: User[] = []): {
           omit,
         }: {
           where: { id: string };
-          data: Partial<User>;
+          data: Partial<User> & {
+            tokenVersion?: { increment: number } | number;
+          };
           include?: { avatarFile?: boolean };
           omit?: { passwordHash?: boolean };
         }) => {
@@ -102,13 +109,28 @@ export function createMockPrisma(initialUsers: User[] = []): {
             return Promise.reject(new Error('User not found'));
           }
 
+          const current = stores.users[index];
+          let nextTokenVersion = current.tokenVersion;
+          if (
+            typeof data.tokenVersion === 'object' &&
+            data.tokenVersion !== null &&
+            'increment' in data.tokenVersion
+          ) {
+            nextTokenVersion =
+              current.tokenVersion +
+              (data.tokenVersion as { increment: number }).increment;
+          } else if (typeof data.tokenVersion === 'number') {
+            nextTokenVersion = data.tokenVersion;
+          }
+
           stores.users[index] = {
-            ...stores.users[index],
+            ...current,
             ...(data as Partial<MockUser>),
+            tokenVersion: nextTokenVersion,
             avatarFileId:
               data.avatarFileId !== undefined
                 ? data.avatarFileId
-                : stores.users[index].avatarFileId,
+                : current.avatarFileId,
             updatedAt: new Date(),
           };
 
@@ -178,6 +200,69 @@ export function createMockPrisma(initialUsers: User[] = []): {
             updatedAt: new Date(),
           };
           return Promise.resolve(stores.invitations[index]);
+        },
+      ),
+    },
+    passwordResetToken: {
+      create: jest.fn(
+        ({
+          data,
+        }: {
+          data: Omit<
+            PasswordResetToken,
+            'id' | 'createdAt' | 'updatedAt' | 'consumedAt'
+          > & { consumedAt?: Date | null };
+        }) => {
+          const token: PasswordResetToken = {
+            ...data,
+            id: `reset-${stores.passwordResetTokens.length + 1}`,
+            consumedAt: data.consumedAt ?? null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          };
+          stores.passwordResetTokens.push(token);
+          return Promise.resolve(token);
+        },
+      ),
+      findUnique: jest.fn(
+        ({
+          where,
+          include,
+        }: {
+          where: { tokenHash: string };
+          include?: { user?: boolean };
+        }) => {
+          const token =
+            stores.passwordResetTokens.find(
+              (t) => t.tokenHash === where.tokenHash,
+            ) ?? null;
+          if (!token || !include?.user) {
+            return Promise.resolve(token);
+          }
+          const user = stores.users.find((u) => u.id === token.userId);
+          return Promise.resolve({ ...token, user });
+        },
+      ),
+      update: jest.fn(
+        ({
+          where,
+          data,
+        }: {
+          where: { id: string };
+          data: Partial<PasswordResetToken>;
+        }) => {
+          const index = stores.passwordResetTokens.findIndex(
+            (t) => t.id === where.id,
+          );
+          if (index === -1) {
+            return Promise.reject(new Error('Password reset token not found'));
+          }
+          stores.passwordResetTokens[index] = {
+            ...stores.passwordResetTokens[index],
+            ...data,
+            updatedAt: new Date(),
+          };
+          return Promise.resolve(stores.passwordResetTokens[index]);
         },
       ),
     },

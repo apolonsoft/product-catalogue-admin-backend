@@ -1,11 +1,19 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  jest,
+} from '@jest/globals';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import * as bcrypt from 'bcrypt';
 import { AppModule } from './../src/app.module';
+import { MailService } from './../src/mail/mail.service';
 import { PrismaService } from './../src/prisma/prisma.service';
 import { createMockPrisma } from './mock-prisma';
 import { Role, UserStatus, type User } from './../src/prisma/prisma-client';
@@ -13,6 +21,7 @@ import { Role, UserStatus, type User } from './../src/prisma/prisma-client';
 describe('AuthController (e2e)', () => {
   let app: INestApplication<App>;
   let httpApp: App;
+  let capturedResetLink: string | null = null;
 
   beforeEach(async () => {
     const passwordHash = await bcrypt.hash('Admin123!', 10);
@@ -22,6 +31,7 @@ describe('AuthController (e2e)', () => {
       passwordHash,
       role: Role.ADMIN,
       status: UserStatus.ACTIVE,
+      tokenVersion: 0,
       phone: null,
       firstName: null,
       lastName: null,
@@ -38,6 +48,12 @@ describe('AuthController (e2e)', () => {
     })
       .overrideProvider(PrismaService)
       .useValue(prisma)
+      .overrideProvider(MailService)
+      .useValue({
+        sendPasswordReset: jest.fn(({ link }: { to: string; link: string }) => {
+          capturedResetLink = link;
+        }),
+      })
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -48,6 +64,7 @@ describe('AuthController (e2e)', () => {
   });
 
   afterEach(async () => {
+    capturedResetLink = null;
     await app.close();
   });
 
@@ -152,6 +169,113 @@ describe('AuthController (e2e)', () => {
         .set('Authorization', `Bearer ${userLogin.body.accessToken as string}`)
         .send({ email: 'another@example.com', role: 'USER' })
         .expect(403);
+    });
+  });
+
+  describe('POST /auth/password/forgot', () => {
+    it('returns 204 for known email', async () => {
+      await request(httpApp)
+        .post('/auth/password/forgot')
+        .send({ email: 'admin@example.com' })
+        .expect(204);
+
+      expect(capturedResetLink).toContain('/auth/password/reset?token=');
+    });
+
+    it('returns 204 for unknown email', async () => {
+      await request(httpApp)
+        .post('/auth/password/forgot')
+        .send({ email: 'unknown@example.com' })
+        .expect(204);
+
+      expect(capturedResetLink).toBeNull();
+    });
+  });
+
+  describe('POST /auth/password/reset', () => {
+    it('resets password and revokes old JWT', async () => {
+      const adminLogin = await request(httpApp)
+        .post('/auth/login')
+        .send({ email: 'admin@example.com', password: 'Admin123!' });
+
+      await request(httpApp)
+        .post('/auth/password/forgot')
+        .send({ email: 'admin@example.com' })
+        .expect(204);
+
+      expect(capturedResetLink).toBeTruthy();
+      const token = new URL(capturedResetLink as string).searchParams.get(
+        'token',
+      );
+      expect(token).toBeTruthy();
+
+      await request(httpApp)
+        .post('/auth/password/reset')
+        .send({ token, password: 'Reset1234!' })
+        .expect(204);
+
+      await request(httpApp)
+        .post('/auth/login')
+        .send({ email: 'admin@example.com', password: 'Reset1234!' })
+        .expect(200);
+
+      await request(httpApp)
+        .get('/auth/me')
+        .set('Authorization', `Bearer ${adminLogin.body.accessToken as string}`)
+        .expect(401);
+    });
+
+    it('fails for reused token', async () => {
+      await request(httpApp)
+        .post('/auth/password/forgot')
+        .send({ email: 'admin@example.com' })
+        .expect(204);
+
+      const token = new URL(capturedResetLink as string).searchParams.get(
+        'token',
+      );
+
+      await request(httpApp)
+        .post('/auth/password/reset')
+        .send({ token, password: 'Reset1234!' })
+        .expect(204);
+
+      await request(httpApp)
+        .post('/auth/password/reset')
+        .send({ token, password: 'Reset1234!' })
+        .expect(400);
+    });
+
+    it('fails for invalid token', async () => {
+      await request(httpApp)
+        .post('/auth/password/reset')
+        .send({ token: 'invalid-token', password: 'Reset1234!' })
+        .expect(404);
+    });
+
+    it('fails for weak password', async () => {
+      await request(httpApp)
+        .post('/auth/password/reset')
+        .send({ token: 'some-token', password: 'short' })
+        .expect(400);
+    });
+  });
+
+  describe('POST /auth/logout', () => {
+    it('revokes the current token', async () => {
+      const login = await request(httpApp)
+        .post('/auth/login')
+        .send({ email: 'admin@example.com', password: 'Admin123!' });
+
+      await request(httpApp)
+        .post('/auth/logout')
+        .set('Authorization', `Bearer ${login.body.accessToken as string}`)
+        .expect(204);
+
+      await request(httpApp)
+        .get('/auth/me')
+        .set('Authorization', `Bearer ${login.body.accessToken as string}`)
+        .expect(401);
     });
   });
 });

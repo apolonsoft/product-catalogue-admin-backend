@@ -24,6 +24,7 @@ describe('ProfileController (e2e)', () => {
       passwordHash,
       role: Role.ADMIN,
       status: UserStatus.ACTIVE,
+      tokenVersion: 0,
       phone: null,
       firstName: 'Admin',
       lastName: 'User',

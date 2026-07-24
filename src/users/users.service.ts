@@ -94,6 +94,13 @@ export class UsersService {
     });
   }
 
+  async incrementTokenVersion(userId: string): Promise<User> {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { tokenVersion: { increment: 1 } },
+    });
+  }
+
   async hashPassword(password: string): Promise<string> {
     const saltRounds =
       Number(this.config.get<number>('BCRYPT_SALT_ROUNDS')) || 10;

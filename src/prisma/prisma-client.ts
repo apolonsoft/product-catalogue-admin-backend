@@ -8,6 +8,7 @@ export {
 export type {
   User,
   UserInvitation,
+  PasswordResetToken,
   File,
   Upload,
 } from '../../generated/prisma';
